@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    @apply h-full w-full overflow-hidden text-[13px] leading-tight;
+  }
+  
+  #root {
+    @apply h-full w-full;
+  }
+}
+
+@layer components {
+  .simulation-container {
+    @apply relative w-full h-full bg-gradient-to-b from-nature-sky to-nature-water;
+  }
+  
+  .ui-panel {
+    @apply bg-white/90 backdrop-blur-sm border border-gray-100 rounded-xl shadow-md p-2;
+  }
+  
+  .simulation-button {
+    @apply px-2 py-1 text-xs bg-terrarium-500 text-white rounded-lg hover:bg-terrarium-600 transition-colors duration-200;
+  }
+  
+  .simulation-button-secondary {
+    @apply px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-colors duration-200;
+  }
+} 
