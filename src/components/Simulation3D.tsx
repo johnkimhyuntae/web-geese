@@ -168,29 +168,32 @@ const Simulation3D: React.FC = () => {
       </Canvas>
       
       {/* UI Overlay */}
-      <div className="absolute top-4 left-4 bg-black/50 text-white p-3 rounded-lg text-sm">
-        <div className="font-bold mb-2">WebGeese</div>
-        <div>Creatures: {creatures.filter(c => !c.isDead).length}</div>
-        <div>Food: {food.filter(f => f.isAvailable).length}/{food.length}</div>
-        <div className="mt-2">
-          <div>Time: {environment.timeOfDay}</div>
-          <div>Weather: {environment.weather}</div>
+      <div className="absolute top-4 left-4 bg-black/50 text-white p-4 rounded-lg text-base">
+        <div className="font-bold mb-3 text-lg">WebGeese</div>
+        <div className="mb-1">Creatures: {creatures.filter(c => !c.isDead).length}</div>
+        <div className="mb-1">Food: {food.filter(f => f.isAvailable).length}/{food.length}</div>
+        <div className="mt-3">
+          <div className="mb-1">Time: {environment.timeOfDay}</div>
+          <div className="mb-1">Weather: {environment.weather}</div>
         </div>
         
         {/* Selected Creature Info */}
         {selectedEntity && creatures.find(c => c.id === selectedEntity) && (
-          <div className="mt-4 p-2 bg-blue-900/50 rounded">
-            <div className="font-bold">Selected Creature:</div>
+          <div className="mt-4 p-3 bg-blue-900/50 rounded">
+            <div className="font-bold text-base mb-2">Selected Creature:</div>
             {(() => {
               const creature = creatures.find(c => c.id === selectedEntity)!
               return (
                 <>
-                  <div>Type: {creature.type}</div>
-                  <div>State: {creature.state}</div>
-                  <div>Hunger: {Math.round(creature.hunger)}%</div>
-                  <div>Vision: {Math.round(creature.vision)}</div>
-                  <div>Speed: {Math.round(creature.speed)}</div>
-                  <div>Intelligence: {Math.round(creature.intelligence)}</div>
+                  <div className="mb-1">Type: {creature.type}</div>
+                  <div className="mb-1">State: {creature.state}</div>
+                  <div className="mb-1">Hunger: {Math.round(creature.hunger)}%</div>
+                  <div className="mb-1">Vision: {Math.round(creature.vision)}</div>
+                  <div className="mb-1">Speed: {Math.round(creature.speed)}</div>
+                  <div className="mb-1">Intelligence: {Math.round(creature.intelligence)}</div>
+                  {creature.state === 'breeding' && (
+                    <div className="text-yellow-300 text-base">🦢 Breeding...</div>
+                  )}
                 </>
               )
             })()}
@@ -199,21 +202,21 @@ const Simulation3D: React.FC = () => {
       </div>
       
       {/* Controls Info */}
-      <div className="absolute bottom-4 left-4 bg-black/50 text-white p-3 rounded-lg text-sm">
-        <div className="font-bold mb-2">Controls</div>
-        <div>Mouse: Rotate camera</div>
-        <div>Scroll: Zoom</div>
-        <div>Right click: Pan</div>
-        <div>Click: Select entities</div>
+      <div className="absolute bottom-4 left-4 bg-black/50 text-white p-4 rounded-lg text-base">
+        <div className="font-bold mb-3 text-lg">Controls</div>
+        <div className="mb-1">Mouse: Rotate camera</div>
+        <div className="mb-1">Scroll: Zoom</div>
+        <div className="mb-1">Right click: Pan</div>
+        <div className="mb-1">Click: Select entities</div>
         <button 
           onClick={spawnCreature}
-          className="mt-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs mr-2"
+          className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm mr-3"
         >
           Spawn Creature
         </button>
         <button 
           onClick={initializeFoodFromTulips}
-          className="mt-2 px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-xs"
+          className="mt-3 px-4 py-2 bg-green-600 hover:bg-green-700 rounded text-sm"
         >
           Add Food
         </button>
