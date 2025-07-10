@@ -7,14 +7,6 @@ export interface Vector3 {
   z: number
 }
 
-
-
-
-
-
-
-
-
 export interface Food {
   id: string
   position: Vector3
@@ -91,6 +83,7 @@ export interface SimulationState {
   advanceTime: (deltaTime: number) => void
   togglePause: () => void
   setSpeed: (speed: number) => void
+  reset: () => void
   
   setSelectedEntity: (id: string | null) => void
   
@@ -172,6 +165,8 @@ export const useSimulationStore = create<SimulationState>()(
       
       setSpeed: (speed) => set({ speed }),
       
+      reset: () => set(initialState),
+      
       setSelectedEntity: (id) => set({ selectedEntity: id }),
       
       simulate: () => {
@@ -193,41 +188,47 @@ export const useSimulationStore = create<SimulationState>()(
           // Update idle animation
           const newIdleAnimation = (creature.idleAnimation + deltaTime * 0.1) % 1
           
-          // Decrease hunger over time (much slower rate so they don't die immediately)
-          const hungerDecrease = deltaTime * 0.01 // Hunger decreases by 0.01 per time unit (5x slower than before)
-          const newHunger = Math.max(0, creature.hunger - hungerDecrease)
-          
-          // Check for immediate death when hunger reaches 0
-          if (newHunger === 0 && creature.hunger > 0) {
-            // Hunger just reached 0, kill the creature immediately
-            get().updateCreature(creature.id, {
-              isDead: true,
-              state: 'dead',
-              lastStateChange: state.gameTime
-            })
-            console.log(`Goose ${creature.id} died immediately from starvation (hunger = 0)`)
-            return // Skip further processing for this creature
-          }
-          
           // State machine logic
           let newState = creature.state
+          let newHunger = creature.hunger
           let newTargetPosition = creature.targetPosition
           let isMoving = creature.isMoving
           let newPosition = { ...creature.position }
           
-          // State transitions based on hunger
-          if (creature.hunger > 50 && creature.state === 'hungry') {
+          // Decrease hunger over time only when not eating or breeding
+          if (creature.state !== 'eating' && creature.state !== 'breeding') {
+            const hungerDecrease = deltaTime * 0.01 // Hunger decreases by 0.01 per time unit
+            newHunger = Math.max(0, creature.hunger - hungerDecrease)
+            
+            // Check for immediate death when hunger reaches 0
+            if (newHunger === 0 && creature.hunger > 0) {
+              // Hunger just reached 0, kill the creature immediately
+              get().updateCreature(creature.id, {
+                isDead: true,
+                state: 'dead',
+                lastStateChange: state.gameTime
+              })
+              console.log(`Goose ${creature.id} died immediately from starvation (hunger = 0)`)
+              return // Skip further processing for this creature
+            }
+          }
+          
+          // State transitions based on hunger - make them completely dependent
+          if (newHunger > 50 && creature.state === 'hungry') {
             newState = 'full'
             get().updateCreature(creature.id, { lastStateChange: state.gameTime })
-          } else if (creature.hunger <= 50 && creature.state === 'full') {
+            console.log(`Creature ${creature.id} transitioned to FULL state, hunger: ${newHunger}`)
+          } else if (newHunger <= 50 && creature.state === 'full') {
             newState = 'hungry'
             get().updateCreature(creature.id, { lastStateChange: state.gameTime })
+            console.log(`Creature ${creature.id} transitioned to HUNGRY state, hunger: ${newHunger}`)
           }
           
                     // Behavior based on state
           if (newState === 'hungry') {
-            // Only look for food if hunger is below 50
-            if (creature.hunger < 50) {
+            // Only look for food if hunger is below random threshold (70-100)
+            const stopEatingThreshold = 70 + Math.random() * 30 // Random threshold between 70-100
+            if (creature.hunger < stopEatingThreshold) {
               // Look for available food within 5x5 area multiplied by vision stat
               const availableFood = state.food.filter(f => f.isAvailable)
               const visionRange = 5 * (creature.vision / 100) // 5x5 area scaled by vision (0-5 units)
@@ -248,16 +249,15 @@ export const useSimulationStore = create<SimulationState>()(
                   lastEaten: state.gameTime
                 })
                 
-                // Make creature full with reduced nutrition (so they need to eat more often)
-                newState = 'full'
+                // Add 1 to hunger when eating food
+                newHunger = Math.min(100, creature.hunger + 1)
+                newState = newHunger > 50 ? 'full' : 'hungry'
                 get().updateCreature(creature.id, {
-                  hunger: 100,
-                  state: 'full',
                   lastStateChange: state.gameTime,
                   targetFoodId: undefined
                 })
                 
-                console.log(`Goose ${creature.id} ate food ${nearestFood.id} and became full`)
+                console.log(`Goose ${creature.id} ate food ${nearestFood.id}, hunger: ${newHunger}`)
               } else {
                 // No food nearby, random movement (increased movement frequency)
                 if (Math.random() < 0.08) { // 8% chance to change direction (4x more frequent)
@@ -278,7 +278,7 @@ export const useSimulationStore = create<SimulationState>()(
                 }
               }
             } else {
-              // Hunger is 50 or above, don't eat, just do random movement (increased)
+              // Hunger is above threshold, don't eat, just do random movement (increased)
               if (Math.random() < 0.06) { // 6% chance to change direction (3x more frequent)
                 const wallBoundary = 49
                 const randomX = creature.position.x + (Math.random() - 0.5) * 12 // Larger movement range
@@ -301,16 +301,35 @@ export const useSimulationStore = create<SimulationState>()(
             if (creature.targetFoodId) {
               const targetFood = state.food.find(f => f.id === creature.targetFoodId)
               if (targetFood && targetFood.isAvailable) {
+                // Check if creature should stop eating (hunger too high or no food nearby)
+                const stopEatingThreshold = 70 + Math.random() * 30 // Random threshold between 70-100
+                const visionRange = 5 * (creature.vision / 100)
+                const nearbyFood = state.food.filter(food => {
+                  if (!food.isAvailable) return false
+                  const dx = Math.abs(food.position.x - creature.position.x)
+                  const dz = Math.abs(food.position.z - creature.position.z)
+                  return dx <= visionRange && dz <= visionRange
+                })
+                
+                if (creature.hunger >= stopEatingThreshold || nearbyFood.length === 0) {
+                  // Stop eating - hunger too high or no food nearby
+                  newState = creature.hunger > 50 ? 'full' : 'hungry'
+                  get().updateCreature(creature.id, { 
+                    targetFoodId: undefined,
+                    state: newState
+                  })
+                  console.log(`Creature ${creature.id} stopped eating - hunger: ${creature.hunger}, nearby food: ${nearbyFood.length}`)
+                  return
+                }
                 const timeEating = state.gameTime - creature.lastStateChange
                 
                 if (timeEating >= 2000) { // 2 seconds = 2000ms
-                  // Finished eating, transition to full state
-                  newState = 'full'
+                  // Finished eating, add 1 to hunger
+                  newHunger = Math.min(100, creature.hunger + 1)
+                  newState = newHunger > 50 ? 'full' : 'hungry'
                   get().updateCreature(creature.id, { 
                     lastStateChange: state.gameTime,
-                    targetFoodId: undefined,
-                    state: 'full',
-                    hunger: 100 // Set to full hunger
+                    targetFoodId: undefined
                   })
                   
                   // Mark food as eaten
@@ -319,7 +338,7 @@ export const useSimulationStore = create<SimulationState>()(
                     lastEaten: state.gameTime
                   })
                   
-                  console.log(`Goose ${creature.id} finished eating after 2 seconds, hunger: 100`)
+                  console.log(`Goose ${creature.id} finished eating after 2 seconds, hunger: ${newHunger}`)
                 } else {
                   // Still eating, keep in eating state
                   newState = 'eating'
@@ -337,9 +356,17 @@ export const useSimulationStore = create<SimulationState>()(
             // Check for breeding opportunities
             const canBreed = state.gameTime - creature.lastBreedingTime > creature.breedingCooldown
             
+            // Debug logging for breeding
+            if (canBreed && Math.random() < 0.01) { // 1% chance to log for debugging
+              console.log(`Creature ${creature.id} can breed, looking for partners...`)
+            } else if (!canBreed && Math.random() < 0.001) { // 0.1% chance to log cooldown
+              const timeLeft = creature.breedingCooldown - (state.gameTime - creature.lastBreedingTime)
+              console.log(`Creature ${creature.id} on breeding cooldown, ${Math.round(timeLeft)}ms left`)
+            }
+            
             if (canBreed) {
               // Look for other full creatures nearby for breeding using vision-based area
-              const visionRange = 5 * (creature.vision / 100) // 5x5 area scaled by vision (0-5 units)
+              const visionRange = 10 * (creature.vision / 100) // 10x10 area scaled by vision (0-10 units) - increased for breeding
               const nearbyCreatures = state.creatures.filter(other => {
                 if (other.id === creature.id || other.isDead || other.state !== 'full') return false
                 
@@ -348,6 +375,11 @@ export const useSimulationStore = create<SimulationState>()(
                 
                 return dx <= visionRange && dz <= visionRange // Check if creature is within vision-based area
               })
+              
+              // Debug logging for nearby creatures
+              if (Math.random() < 0.005) { // 0.5% chance to log for debugging
+                console.log(`Creature ${creature.id} found ${nearbyCreatures.length} potential breeding partners`)
+              }
               
               if (nearbyCreatures.length > 0) {
                 // Found a breeding partner
@@ -375,7 +407,8 @@ export const useSimulationStore = create<SimulationState>()(
                     targetPosition: undefined
                   })
                   
-                  console.log(`Creatures ${creature.id} and ${partner.id} started breeding`)
+                  console.log(`Creatures ${creature.id} and ${partner.id} started breeding!`)
+                  console.log(`Creature ${creature.id} hunger: ${creature.hunger}, partner ${partner.id} hunger: ${partner.hunger}`)
                 }
               } else {
                 // No breeding partner found, do random idle behavior (increased movement)
@@ -417,11 +450,19 @@ export const useSimulationStore = create<SimulationState>()(
             }
           } else if (newState === 'breeding') {
             // Handle breeding state
-            const breedingDuration = 3000 // 3 seconds of breeding
+            const breedingDuration = 1500 // 1.5 seconds of breeding
             const timeBreeding = state.gameTime - creature.lastStateChange
+            
+            // Debug logging for breeding state
+            if (Math.random() < 0.01) { // 1% chance to log for debugging
+              console.log(`Creature ${creature.id} breeding, ${Math.round(breedingDuration - timeBreeding)}ms left`)
+            }
             
             if (timeBreeding >= breedingDuration) {
               // Breeding complete, create a new creature
+              const babyHunger = 40 + Math.random() * 20 // Start moderately hungry (40-60)
+              const babyState = babyHunger > 50 ? 'full' : 'hungry' // State depends on hunger
+              
               const babyCreature: Omit<Creature, 'id'> = {
                 type: 'goose',
                 position: {
@@ -437,21 +478,22 @@ export const useSimulationStore = create<SimulationState>()(
                 isIdle: true,
                 idleAnimation: 0,
                 vision: Math.max(30, Math.min(90, creature.vision + (Math.random() - 0.5) * 20)), // Inherit with variation
-                hunger: 50 + Math.random() * 20, // Start moderately hungry
+                hunger: babyHunger,
                 speed: Math.max(20, Math.min(80, creature.speed + (Math.random() - 0.5) * 20)), // Inherit with variation
                 intelligence: Math.max(10, Math.min(90, creature.intelligence + (Math.random() - 0.5) * 20)), // Inherit with variation
-                state: 'hungry',
+                state: babyState,
                 lastStateChange: state.gameTime,
                 lastBreedingTime: 0,
-                breedingCooldown: 10000,
+                breedingCooldown: 5000,
                 isDead: false
               }
               
               get().addCreature(babyCreature)
               
-              // Reset both parents to full state
+              // Reset both parents with moderate hunger boost
+              newHunger = Math.min(100, creature.hunger + 20) // Add 20 to hunger after breeding
+              newState = newHunger > 50 ? 'full' : 'hungry'
               get().updateCreature(creature.id, {
-                state: 'full',
                 lastStateChange: state.gameTime,
                 lastBreedingTime: state.gameTime, // Set breeding cooldown
                 isMoving: false,
@@ -468,8 +510,11 @@ export const useSimulationStore = create<SimulationState>()(
               )
               
               if (partner) {
+                const partnerHunger = Math.min(100, partner.hunger + 20) // Add 20 to hunger after breeding
+                const partnerState = partnerHunger > 50 ? 'full' : 'hungry'
                 get().updateCreature(partner.id, {
-                  state: 'full',
+                  hunger: partnerHunger,
+                  state: partnerState,
                   lastStateChange: state.gameTime,
                   lastBreedingTime: state.gameTime, // Set breeding cooldown
                   isMoving: false,
@@ -565,7 +610,7 @@ export const useSimulationStore = create<SimulationState>()(
         })
         
         // Constant food generation (new food spawns randomly)
-        if (Math.random() < 0.02) { // 2% chance per frame to spawn new food
+        if (Math.random() < 0.005) { // 0.5% chance per frame to spawn new food (4x slower)
           const wallBoundary = 45 // Keep food away from walls
           const randomX = (Math.random() - 0.5) * wallBoundary * 2
           const randomZ = (Math.random() - 0.5) * wallBoundary * 2
@@ -593,6 +638,9 @@ export const useSimulationStore = create<SimulationState>()(
       
       spawnCreature: () => {
         const state = get()
+        const initialHunger = 30 + Math.random() * 40 // Start with moderate hunger (30-70)
+        const initialState = initialHunger > 50 ? 'full' : 'hungry' // State depends on hunger
+        
         const creature: Omit<Creature, 'id'> = {
           type: 'goose',
           position: getRandomPosition(),
@@ -604,17 +652,34 @@ export const useSimulationStore = create<SimulationState>()(
           isIdle: true,
           idleAnimation: 0,
           vision: 50 + Math.random() * 30, // 50-80
-          hunger: 60 + Math.random() * 30, // Start with more hunger (60-90)
+          hunger: initialHunger,
           speed: 30 + Math.random() * 40, // 30-70
           intelligence: 20 + Math.random() * 60, // 20-80
-          state: 'hungry', // Start hungry to seek food
+          state: initialState, // State is now dependent on hunger
           lastStateChange: state.gameTime,
           lastBreedingTime: 0, // Never bred before
-          breedingCooldown: 10000, // 10 second cooldown
+          breedingCooldown: 5000, // 5 second cooldown
           isDead: false
         }
         get().addCreature(creature)
         console.log(`Spawned goose with hunger: ${creature.hunger}, state: ${creature.state}`)
+        
+        // Spawn a second creature nearby to increase breeding chances
+        if (state.creatures.length === 1) { // Only spawn second creature if this is the first one
+          const secondCreature: Omit<Creature, 'id'> = {
+            ...creature,
+            position: {
+              x: creature.position.x + (Math.random() - 0.5) * 4, // Spawn nearby
+              y: creature.position.y,
+              z: creature.position.z + (Math.random() - 0.5) * 4
+            },
+            vision: 50 + Math.random() * 30,
+            hunger: 30 + Math.random() * 40,
+            state: (30 + Math.random() * 40) > 50 ? 'full' : 'hungry'
+          }
+          get().addCreature(secondCreature)
+          console.log(`Spawned second goose nearby with hunger: ${secondCreature.hunger}, state: ${secondCreature.state}`)
+        }
       },
       
       // Initialize food automatically

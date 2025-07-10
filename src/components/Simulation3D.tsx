@@ -9,7 +9,7 @@ import Environment from './Environment'
 const Simulation3D: React.FC = () => {
   console.log('Simulation3D component rendering...')
   
-  const { creatures, food, environment, selectedEntity, setSelectedEntity, spawnCreature, addFood, initializeFood } = useSimulationStore()
+  const { creatures, food, environment, selectedEntity, setSelectedEntity, spawnCreature, addFood, initializeFood, speed, setSpeed, isPaused, togglePause, reset } = useSimulationStore()
   
   // Initialize food when component mounts
   React.useEffect(() => {
@@ -201,6 +201,21 @@ const Simulation3D: React.FC = () => {
         )}
       </div>
       
+      {/* Speed Control */}
+      <div className="absolute top-4 right-4 bg-black/50 text-white p-4 rounded-lg text-base">
+        <div className="font-bold mb-2 text-lg">Speed</div>
+        <select 
+          value={speed} 
+          onChange={(e) => setSpeed(Number(e.target.value))}
+          className="bg-gray-700 text-white px-3 py-1 rounded text-sm border border-gray-600"
+        >
+          <option value={1}>x1</option>
+          <option value={2}>x2</option>
+          <option value={5}>x5</option>
+          <option value={10}>x10</option>
+        </select>
+      </div>
+      
       {/* Controls Info */}
       <div className="absolute bottom-4 left-4 bg-black/50 text-white p-4 rounded-lg text-base">
         <div className="font-bold mb-3 text-lg">Controls</div>
@@ -220,6 +235,29 @@ const Simulation3D: React.FC = () => {
         >
           Add Food
         </button>
+      </div>
+      
+      {/* Simulation Controls */}
+      <div className="absolute bottom-4 right-4 bg-black/50 text-white p-4 rounded-lg text-base">
+        <div className="font-bold mb-3 text-lg">Simulation</div>
+        <div className="flex gap-2">
+          <button 
+            onClick={togglePause}
+            className={`px-4 py-2 rounded text-sm font-medium ${
+              isPaused 
+                ? 'bg-green-600 hover:bg-green-700' 
+                : 'bg-yellow-600 hover:bg-yellow-700'
+            }`}
+          >
+            {isPaused ? '▶ Resume' : '⏸ Pause'}
+          </button>
+          <button 
+            onClick={reset}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-sm font-medium"
+          >
+            🔄 Reset
+          </button>
+        </div>
       </div>
     </div>
   )
