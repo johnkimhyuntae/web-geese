@@ -1,6 +1,6 @@
 # WebGeese 🦢
 
-A beautiful 3D ecosystem simulation featuring geese and other creatures in an interactive environment. Built with React, Three.js, and Zustand.
+A beautiful 3D ecosystem simulation featuring geese and other creatures in an interactive environment. Built with React, Three.js, and Zustand. For **CursorJam 2025**.
 
 ## Features
 
